@@ -46,11 +46,11 @@ def data_augmentation(images):
         images = layer(images)
     return images
 
-def image_loader(file_name,target):
+def image_loader(file_name,target,batches):
     df=pd.read_parquet(file_name)
     df=image_preprocess(df)
 
-    #changing my pandas DataFrame to tf dataset; using 'Minutes from Midnight'
+    #labels
     images=list(df['image'])
     if target=='minutes':
         labels=df['Minutes from Midnight'].astype('float32').values
@@ -58,16 +58,23 @@ def image_loader(file_name,target):
         labels=df[['Hour','Minute']].astype('float32').values
     elif target=='categorical':
         labels=df[['Hour (categorical)','Minute']]
+
+    #changing pandas dataframe to tf dataset; taking subset of dataset
+    df100=df[:100]
+    images=list(df100['image'])
+    labels=labels[:100].astype('float32').values
     tf_dataset=tf.data.Dataset.from_tensor_slices((images,labels)).batch(64)
 
     #taking small subset for model + splitting into training and validation
-    ds100=tf_dataset.take(100)
-    train_ds=ds100.take(80)
-    val_ds=ds100.skip(80)
+    train_ds=tf_dataset.take(80)
+    val_ds=tf_dataset.skip(80)
 
     train_ds = tf_dataset.map(
         lambda img, label: (data_augmentation(img), label),
         num_parallel_calls=tf_data.AUTOTUNE,
     )
+
+    train_ds=train_ds.batch(batches)
+    val_ds=val_ds.batch(batches)
 
     return train_ds, val_ds
